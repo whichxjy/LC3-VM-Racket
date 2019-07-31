@@ -123,6 +123,21 @@
 
 ;; =================== Instructions Implementation ==================
 
+(define (do-add instr)
+  ;; destination register (DR)
+  (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
+  ;; first operand (SR1)
+  (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
+  ;; whether we are in immediate mode
+  (define imm-flag (positive? (bitwise-and (arithmetic-shift instr -5) #x1)))
+  (cond [(imm-flag)
+         (define imm5 (sign-extend (bitwise-and instr #x1F) 5))
+         (reg-write r0 (+ (reg-read r1) imm5))]
+        [else
+         (define r2 (bitwise-and instr #x7))
+         (reg-write r0 (+ (reg-read r1) (reg-read r2)))])
+  (update-flags r0))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -131,7 +146,7 @@
   ;; set the PC to starting position
   ;; 0x3000 is the default
   (define PC-START #x3000)
-  (vector-set! reg R-PC PC-START)
+  (reg-write R-PC PC-START)
   ;; read & execute instructions with recursion
   (define (read-exec-iter)
     (when is-running
@@ -139,6 +154,7 @@
       (define instr (mem-read (reg-read R-PC)))
       (define op (arithmetic-shift instr -12))
       ;; execute
-
+      (case op
+        [(OP_ADD) (do-add instr)])
       (read-exec-iter)))
   (read-exec-iter))
