@@ -172,6 +172,19 @@
   (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
   (reg-write R-PC (reg-read r1)))
 
+;; JSR
+(define (do-jsr instr)
+  (reg-write R-R7 (reg-read R-PC))
+  (define long-flag (positive? (bitwise-and (arithmetic-shift instr -11) #x1)))
+  (cond [(long-flag)
+         ;; JSR
+         (define long-pc-offset (sign-extend (bitwise-and instr #x7FF) 11))
+         (reg-write R-PC (+ (reg-read R-PC) long-pc-offset))]
+        [else
+         ;; JSRR
+         (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
+         (reg-write R-PC (reg-read r1))]))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -193,7 +206,8 @@
         [(OP-AND) (do-and instr)]
         [(OP-NOT) (do-not instr)]
         [(OP-BR) (do-br instr)]
-        [(OP-JMP) (do-jmp)])
+        [(OP-JMP) (do-jmp instr)]
+        [(OP-JSR) (do-jsr instr)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
