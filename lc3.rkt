@@ -185,6 +185,13 @@
          (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
          (reg-write R-PC (reg-read r1))]))
 
+;; LD
+(define (do-ld instr)
+  (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
+  (define pc-offset (sign-extend (bitwise-and instr #x1FF) 9))
+  (reg-write r0 (mem-read (+ (reg-read R-PC) pc-offset)))
+  (update-flags r0))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -207,8 +214,9 @@
         [(OP-NOT) (do-not instr)]
         [(OP-BR) (do-br instr)]
         [(OP-JMP) (do-jmp instr)]
-        [(OP-JSR) (do-jsr instr)])
+        [(OP-JSR) (do-jsr instr)]
+        [(OP-LD) (do-ld instr)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
-  fetch-exec-iter)
+  (fetch-exec-iter))
