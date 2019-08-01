@@ -219,6 +219,12 @@
   (define pc-offset (sign-extend (bitwise-and instr #x1FF) 9))
   (mem-write (+ (reg-read R-PC) pc-offset) (reg-read r0)))
 
+;; STI
+(define (do-sti instr)
+  (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
+  (define pc-offset (sign-extend (bitwise-and instr #x1FF) 9))
+  (mem-write (mem-read (+ (reg-read R-PC) pc-offset)) (reg-read r0)))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -246,7 +252,8 @@
         [(OP-LDI) (do-ldi instr)]
         [(OP-LDR) (do-ldr instr)]
         [(OP-LEA) (do-lea instr)]
-        [(OP-ST) (do-st instr)])
+        [(OP-ST) (do-st instr)]
+        [(OP-STI) (do-sti instr)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
