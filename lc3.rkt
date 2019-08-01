@@ -1,7 +1,7 @@
 #lang racket
 
 ;; The LC-3 has 65536 memory locations
-(define UINT16-MAX #xFFFF)
+(define MEM-LOC-NUM (expt 2 16))
 
 ;; The LC-3 has 10 total registers
 (define REG-COUNT 10)
@@ -10,7 +10,7 @@
 (define is-running #t)
 
 ;; Memory Storage
-(define memory (make-vector UINT16-MAX 0))
+(define memory (make-vector MEM-LOC-NUM 0))
 
 ;; Register Storage
 (define reg (make-vector REG-COUNT 0))
@@ -54,10 +54,18 @@
 (define MR-KBSR #xFE00) ;; keyboard status
 (define MR-KBDR #xFE02) ;; keyboard data
 
+;; TRAP Codes
+(define TRAP-GETC #x20)  ;; get character from keyboard, not echoed onto the terminal
+(define TRAP-OUT #x21)   ;; output a character
+(define TRAP-PUTS #x22)  ;; output a word string
+(define TRAP-IN #x23)    ;; get character from keyboard, echoed onto the terminal
+(define TRAP-PUTSP #x24) ;; output a byte string
+(define TRAP-HALT #x25)  ;; halt the program
+
 ;; Swap
 (define (swap16 two-bytes)
-  (define high-byte (bytes-ref two-bytes 0))
   (define low-byte (bytes-ref two-bytes 1))
+  (define high-byte (bytes-ref two-bytes 0))
   (bitwise-ior (arithmetic-shift high-byte 8) low-byte))
 
 ;; Sign Extend
@@ -90,7 +98,7 @@
 
 ;; Print Memory (Just For Test)
 (define (print-memory)
-  (for ([i (in-range 0 UINT16-MAX)])
+  (for ([i (in-range 0 MEM-LOC-NUM)])
     (if (= (modulo (add1 i) 5) 0)
         (printf "[index ~a]: ~a\n" i (mem-read i))
         (printf "[index ~a]: ~a  " i (mem-read i)))))
@@ -117,11 +125,67 @@
   (define origin (read-two-bytes in-port))
   ;; read image with recursion
   (define (read-image-iter in-port address)
-    (let ([two-bytes (read-two-bytes in-port)])
-      (unless (or (>= address UINT16-MAX) (eof-object? two-bytes))
-        (mem-write address two-bytes)
-        (read-image-iter in-port (add1 address)))))
+    (define two-bytes (read-two-bytes in-port))
+    (unless (or (>= address MEM-LOC-NUM) (eof-object? two-bytes))
+      (mem-write address two-bytes)
+      (read-image-iter in-port (add1 address))))
   (read-image-iter in-port origin))
+
+;; ====================== Traps Implementation ======================
+
+;; TRAP GETC
+(define (handle-trap-getc)
+  ;; read a single ASCII character
+  (reg-write R-R0 (char->integer (read-char))))
+
+;; TRAP OUT
+(define (handle-trap-out)
+  ;; write a ASCII character to the console display
+  (display (integer->char (reg-read R-R0)))
+  (flush-output))
+
+;; TRAP PUTS
+(define (handle-trap-puts)
+  ;; write a string of ASCII characters to the console display
+  (define (write-char-iter addr)
+    (unless (zero? (mem-read addr))
+      (display (integer->char (mem-read addr)))
+      (write-char-iter (add1 addr))))
+  (write-char-iter (reg-read R-R0))
+  (flush-output))
+
+;; TRAP IN
+(define (handle-trap-in)
+  ;; print a prompt on the screen
+  (display "Enter a character: ")
+  (flush-output)
+  ;; read a single character from the keyboard
+  (define ch (read-char))
+  (display ch)
+  (reg-write R-R0 (char->integer ch)))
+
+;; TRAP PUTSP
+(define (handle-trap-putsp)
+  ;; write a string of ASCII characters to the console display
+  ;; (two characters per memory location)
+  (define (write-char-iter addr)
+    (unless (zero? (mem-read addr))
+      (define low-byte (bitwise-and (mem-read addr) #xFF))
+      (define high-byte (arithmetic-shift (mem-read addr) -8))
+      (display (integer->char low-byte))
+      (when (positive? high-byte)
+        (display (integer->char high-byte)))
+      (write-char-iter (add1 addr))))
+  (write-char-iter (reg-read R-R0))
+  (flush-output))
+
+;; TRAP HALT
+(define (handle-trap-halt)
+  ;; halt execution
+  (set! is-running #f)
+  ;; print a message on the console
+  (displayln "HALT")
+  (flush-output))
 
 ;; =================== Instructions Implementation ==================
 
@@ -132,8 +196,8 @@
   ;; first operand (SR1)
   (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
   ;; whether we are in immediate mode
-  (define imm-flag (positive? (bitwise-and (arithmetic-shift instr -5) #x1)))
-  (cond [(imm-flag)
+  (define imm-flag (bitwise-and (arithmetic-shift instr -5) #x1))
+  (cond [(positive? imm-flag)
          (define imm5 (sign-extend (bitwise-and instr #x1F) 5))
          (reg-write r0 (+ (reg-read r1) imm5))]
         [else
@@ -145,8 +209,8 @@
 (define (do-and instr)
   (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
   (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
-  (define imm-flag (positive? (bitwise-and (arithmetic-shift instr -5) #x1)))
-  (cond [(imm-flag)
+  (define imm-flag (bitwise-and (arithmetic-shift instr -5) #x1))
+  (cond [(positive? imm-flag)
          (define imm5 (sign-extend (bitwise-and instr #x1F) 5))
          (reg-write r0 (bitwise-and (reg-read r1) imm5))]
         [else
@@ -177,8 +241,8 @@
 ;; JSR
 (define (do-jsr instr)
   (reg-write R-R7 (reg-read R-PC))
-  (define long-flag (positive? (bitwise-and (arithmetic-shift instr -11) #x1)))
-  (cond [(long-flag)
+  (define long-flag (bitwise-and (arithmetic-shift instr -11) #x1))
+  (cond [(positive? long-flag)
          ;; JSR
          (define long-pc-offset (sign-extend (bitwise-and instr #x7FF) 11))
          (reg-write R-PC (+ (reg-read R-PC) long-pc-offset))]
@@ -235,6 +299,17 @@
   (define offset (sign-extend (bitwise-and instr #x3F) 6))
   (mem-write (+ (reg-read r1) offset) (reg-read r0)))
 
+;; TRAP
+(define (do-trap instr)
+  (define trap-code (bitwise-and instr #xFF))
+  (case trap-code
+    [(TRAP-GETC) (handle-trap-getc)]
+    [(TRAP-OUT) (handle-trap-out)]
+    [(TRAP-PUTS) (handle-trap-puts)]
+    [(TRAP-IN) (handle-trap-in)]
+    [(TRAP-PUTSP) (handle-trap-putsp)]
+    [(TRAP-HALT) (handle-trap-halt)]))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -264,7 +339,8 @@
         [(OP-LEA) (do-lea instr)]
         [(OP-ST) (do-st instr)]
         [(OP-STI) (do-sti instr)]
-        [(OP-STR) (do-str instr)])
+        [(OP-STR) (do-str instr)]
+        [(OP-TRAP) (do-trap)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
