@@ -340,7 +340,8 @@
         [(OP-ST) (do-st instr)]
         [(OP-STI) (do-sti instr)]
         [(OP-STR) (do-str instr)]
-        [(OP-TRAP) (do-trap)])
+        [(OP-TRAP) (do-trap)]
+        [else (error "BAD OPCODE")])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
