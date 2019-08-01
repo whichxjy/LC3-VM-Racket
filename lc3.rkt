@@ -199,6 +199,14 @@
   (reg-write r0 (mem-read (mem-read (+ (reg-read R-PC) pc-offset))))
   (update-flags r0))
 
+;; LDR
+(define (do-ldr instr)
+  (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
+  (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
+  (define offset (sign-extend (bitwise-and instr #x3F) 6))
+  (reg-write r0 (mem-read (+ (reg-read r1) offset)))
+  (update-flags r0))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -223,7 +231,8 @@
         [(OP-JMP) (do-jmp instr)]
         [(OP-JSR) (do-jsr instr)]
         [(OP-LD) (do-ld instr)]
-        [(OP-LDI) (do-ldi instr)])
+        [(OP-LDI) (do-ldi instr)]
+        [(OP-LDR) (do-ldr instr)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
