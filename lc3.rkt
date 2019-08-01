@@ -151,7 +151,13 @@
          (define r2 (bitwise-and instr #x7))
          (reg-write r0 (bitwise-and (reg-read r1) (reg-read r2)))])
   (update-flags r0))
-  
+
+;; NOT
+(define (do-not instr)
+  (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
+  (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
+  (reg-write r0 (bitwise-not (reg-read r1)))
+  (update-flags r0))
 
 ;; ==================================================================
 
@@ -171,7 +177,8 @@
       ;; execute
       (case op
         [(OP_ADD) (do-add instr)]
-        [(OP-AND) (do-and instr)])
+        [(OP-AND) (do-and instr)]
+        [(OP-NOT) (do-not instr)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
