@@ -159,6 +159,13 @@
   (reg-write r0 (bitwise-not (reg-read r1)))
   (update-flags r0))
 
+;; BR
+(define (do-br instr)
+  (define pc-offset (sign-extend (bitwise-and instr #x1FF) 9))
+  (define cond-flag (bitwise-and (arithmetic-shift instr -9) #x7))
+  (cond [(positive? (bitwise-and cond-flag (reg-read R-COND)))
+         (reg-write R-PC (+ (reg-read R-PC) pc-offset))]))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -178,7 +185,8 @@
       (case op
         [(OP_ADD) (do-add instr)]
         [(OP-AND) (do-and instr)]
-        [(OP-NOT) (do-not instr)])
+        [(OP-NOT) (do-not instr)]
+        [(OP-BR)  (do-br instr)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
