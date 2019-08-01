@@ -1,9 +1,12 @@
 #lang racket
 
+;; The LC-3 has 65536 memory locations
 (define UINT16-MAX #xFFFF)
 
+;; The LC-3 has 10 total registers
 (define REG-COUNT 10)
 
+;; Is the virtual machine still running?
 (define is-running #t)
 
 ;; Memory Storage
@@ -85,7 +88,7 @@
            (mem-write MR-KBSR 0)]))
   (vector-ref memory address))
 
-;; Print Memory
+;; Print Memory (Just For Test)
 (define (print-memory)
   (for ([i (in-range 0 UINT16-MAX)])
     (if (= (modulo (add1 i) 5) 0)
@@ -225,6 +228,13 @@
   (define pc-offset (sign-extend (bitwise-and instr #x1FF) 9))
   (mem-write (mem-read (+ (reg-read R-PC) pc-offset)) (reg-read r0)))
 
+;; STR
+(define (do-str instr)
+  (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
+  (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
+  (define offset (sign-extend (bitwise-and instr #x3F) 6))
+  (mem-write (+ (reg-read r1) offset) (reg-read r0)))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -253,7 +263,8 @@
         [(OP-LDR) (do-ldr instr)]
         [(OP-LEA) (do-lea instr)]
         [(OP-ST) (do-st instr)]
-        [(OP-STI) (do-sti instr)])
+        [(OP-STI) (do-sti instr)]
+        [(OP-STR) (do-str instr)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
