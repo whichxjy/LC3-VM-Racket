@@ -123,6 +123,7 @@
 
 ;; =================== Instructions Implementation ==================
 
+;; ADD
 (define (do-add instr)
   ;; destination register (DR)
   (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
@@ -138,6 +139,20 @@
          (reg-write r0 (+ (reg-read r1) (reg-read r2)))])
   (update-flags r0))
 
+;; AND
+(define (do-and instr)
+  (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
+  (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
+  (define imm-flag (positive? (bitwise-and (arithmetic-shift instr -5) #x1)))
+  (cond [(imm-flag)
+         (define imm5 (sign-extend (bitwise-and instr #x1F) 5))
+         (reg-write r0 (bitwise-and (reg-read r1) imm5))]
+        [else
+         (define r2 (bitwise-and instr #x7))
+         (reg-write r0 (bitwise-and (reg-read r1) (reg-read r2)))])
+  (update-flags r0))
+  
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -147,14 +162,17 @@
   ;; 0x3000 is the default
   (define PC-START #x3000)
   (reg-write R-PC PC-START)
-  ;; read & execute instructions with recursion
-  (define (read-exec-iter)
+  ;; fetch & execute instructions with recursion
+  (define (fetch-exec-iter)
     (when is-running
       ;; fetch
       (define instr (mem-read (reg-read R-PC)))
       (define op (arithmetic-shift instr -12))
       ;; execute
       (case op
-        [(OP_ADD) (do-add instr)])
-      (read-exec-iter)))
-  (read-exec-iter))
+        [(OP_ADD) (do-add instr)]
+        [(OP-AND) (do-and instr)])
+      ;; update program counter
+      (reg-write R-PC (add1 (reg-read R-PC)))
+      (fetch-exec-iter)))
+  fetch-exec-iter)
