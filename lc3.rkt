@@ -166,6 +166,12 @@
   (cond [(positive? (bitwise-and cond-flag (reg-read R-COND)))
          (reg-write R-PC (+ (reg-read R-PC) pc-offset))]))
 
+;; JMP
+(define (do-jmp instr)
+  ;; Also handles RET
+  (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
+  (reg-write R-PC (reg-read r1)))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -186,7 +192,8 @@
         [(OP_ADD) (do-add instr)]
         [(OP-AND) (do-and instr)]
         [(OP-NOT) (do-not instr)]
-        [(OP-BR)  (do-br instr)])
+        [(OP-BR) (do-br instr)]
+        [(OP-JMP) (do-jmp)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
