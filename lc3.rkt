@@ -77,12 +77,12 @@
 
 ;; Read From Memory
 (define (mem-read address)
-  (cond [(= address MR-KBSR)
-         (cond [(char-ready?)
-                (mem-write MR-KBSR (arithmetic-shift 1 15))
-                (mem-write MR-KBDR (char->integer (read-char)))]
-               [else
-                (mem-write MR-KBSR 0)])])
+  (when (= address MR-KBSR)
+    (cond [(char-ready?)
+           (mem-write MR-KBSR (arithmetic-shift 1 15))
+           (mem-write MR-KBDR (char->integer (read-char)))]
+          [else
+           (mem-write MR-KBSR 0)]))
   (vector-ref memory address))
 
 ;; Print Memory
@@ -119,7 +119,6 @@
         (mem-write address two-bytes)
         (read-image-iter in-port (add1 address)))))
   (read-image-iter in-port origin))
-
 
 ;; =================== Instructions Implementation ==================
 
@@ -207,6 +206,13 @@
   (reg-write r0 (mem-read (+ (reg-read r1) offset)))
   (update-flags r0))
 
+;; LEA
+(define (do-lea instr)
+  (define r0 (bitwise-and (arithmetic-shift instr -9) #x7))
+  (define pc-offset (sign-extend (bitwise-and instr #x1FF) 9))
+  (reg-write r0 (+ (reg-read R-PC) pc-offset))
+  (update-flags r0))
+
 ;; ==================================================================
 
 ;; Main Loop
@@ -232,7 +238,8 @@
         [(OP-JSR) (do-jsr instr)]
         [(OP-LD) (do-ld instr)]
         [(OP-LDI) (do-ldi instr)]
-        [(OP-LDR) (do-ldr instr)])
+        [(OP-LDR) (do-ldr instr)]
+        [(OP-LEA) (do-lea instr)])
       ;; update program counter
       (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
