@@ -70,12 +70,14 @@
 
 ;; Sign Extend
 (define (sign-extend x bit-count)
-  (cond [(positive? (bitwise-and (arithmetic-shift x (- (sub1 bit-count))) 1))
-         (bitwise-ior x (arithmetic-shift #xFFFF bit-count))]
-        [else x]))
+  (cond [(positive? (bitwise-and (arithmetic-shift x (- (sub1 bit-count))) #x1))
+         (bitwise-and (bitwise-ior x (arithmetic-shift #xFFFF bit-count)) #xFFFF)]
+        [else
+         (bitwise-and x #xFFFF)]))
 
 ;; Write To Register
 (define (reg-write reg-idx val)
+  (set! val (bitwise-and val #xFFFF))
   (vector-set! reg reg-idx val))
 
 ;; Read From Register
@@ -84,10 +86,12 @@
 
 ;; Write To Memory
 (define (mem-write address val)
+  (set! address (bitwise-and address #xFFFF))
   (vector-set! memory address val))
 
 ;; Read From Memory
 (define (mem-read address)
+  (set! address (bitwise-and address #xFFFF))
   (when (= address MR-KBSR)
     (cond [(char-ready?)
            (mem-write MR-KBSR (arithmetic-shift 1 15))
@@ -96,12 +100,17 @@
            (mem-write MR-KBSR 0)]))
   (vector-ref memory address))
 
-;; Print Memory (Just For Test)
-(define (print-memory)
+;; Display Memory (Just For Debugging)
+(define (display-memory)
   (for ([i (in-range 0 MEM-LOC-NUM)])
     (if (= (modulo (add1 i) 5) 0)
-        (printf "[index ~a]: ~a\n" i (mem-read i))
-        (printf "[index ~a]: ~a  " i (mem-read i)))))
+        (printf "[address ~a]: ~a\n" i (mem-read i))
+        (printf "[address ~a]: ~a  " i (mem-read i)))))
+
+;; Display Registers (Just For Debugging)
+(define (display-registers)
+  (for ([i (in-range 0 REG-COUNT)])
+    (printf "[reg ~a]: ~a\n" i (reg-read i))))
 
 ;; Update Flags
 (define (update-flags reg-idx)
@@ -302,13 +311,13 @@
 ;; TRAP
 (define (do-trap instr)
   (define trap-code (bitwise-and instr #xFF))
-  (case trap-code
-    [(TRAP-GETC) (handle-trap-getc)]
-    [(TRAP-OUT) (handle-trap-out)]
-    [(TRAP-PUTS) (handle-trap-puts)]
-    [(TRAP-IN) (handle-trap-in)]
-    [(TRAP-PUTSP) (handle-trap-putsp)]
-    [(TRAP-HALT) (handle-trap-halt)]))
+  (cond
+    [(= trap-code TRAP-GETC) (handle-trap-getc)]
+    [(= trap-code TRAP-OUT) (handle-trap-out)]
+    [(= trap-code TRAP-PUTS) (handle-trap-puts)]
+    [(= trap-code TRAP-IN) (handle-trap-in)]
+    [(= trap-code TRAP-PUTSP) (handle-trap-putsp)]
+    [(= trap-code TRAP-HALT) (handle-trap-halt)]))
 
 ;; ==================================================================
 
@@ -324,25 +333,26 @@
     (when is-running
       ;; fetch
       (define instr (mem-read (reg-read R-PC)))
+      (reg-write R-PC (add1 (reg-read R-PC)))
       (define op (arithmetic-shift instr -12))
       ;; execute
-      (case op
-        [(OP_ADD) (do-add instr)]
-        [(OP-AND) (do-and instr)]
-        [(OP-NOT) (do-not instr)]
-        [(OP-BR) (do-br instr)]
-        [(OP-JMP) (do-jmp instr)]
-        [(OP-JSR) (do-jsr instr)]
-        [(OP-LD) (do-ld instr)]
-        [(OP-LDI) (do-ldi instr)]
-        [(OP-LDR) (do-ldr instr)]
-        [(OP-LEA) (do-lea instr)]
-        [(OP-ST) (do-st instr)]
-        [(OP-STI) (do-sti instr)]
-        [(OP-STR) (do-str instr)]
-        [(OP-TRAP) (do-trap)]
+      (cond
+        [(= op OP-ADD) (do-add instr)]
+        [(= op OP-AND) (do-and instr)]
+        [(= op OP-NOT) (do-not instr)]
+        [(= op OP-BR) (do-br instr)]
+        [(= op OP-JMP) (do-jmp instr)]
+        [(= op OP-JSR) (do-jsr instr)]
+        [(= op OP-LD) (do-ld instr)]
+        [(= op OP-LDI) (do-ldi instr)]
+        [(= op OP-LDR) (do-ldr instr)]
+        [(= op OP-LEA) (do-lea instr)]
+        [(= op OP-ST) (do-st instr)]
+        [(= op OP-STI) (do-sti instr)]
+        [(= op OP-STR) (do-str instr)]
+        [(= op OP-TRAP) (do-trap instr)]
         [else (error "BAD OPCODE")])
-      ;; update program counter
-      (reg-write R-PC (add1 (reg-read R-PC)))
       (fetch-exec-iter)))
   (fetch-exec-iter))
+
+(main)
