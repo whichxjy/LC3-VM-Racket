@@ -102,16 +102,20 @@
   (vector-ref memory address))
 
 ;; Display Memory (Just For Debugging)
-(define (display-memory)
+(define (display-mem)
   (for ([i (in-range 0 MEM-LOC-NUM)])
-    (if (= (modulo (add1 i) 5) 0)
-        (printf "[address ~a]: ~a\n" i (mem-read i))
-        (printf "[address ~a]: ~a  " i (mem-read i)))))
+    (printf "[address ~a]: ~a" i (mem-read i))
+    (if (= (modulo (add1 i) 4) 0)
+        (newline)
+        (display " "))))
 
 ;; Display Registers (Just For Debugging)
-(define (display-registers)
+(define (display-reg)
   (for ([i (in-range 0 REG-COUNT)])
-    (printf "[reg ~a]: ~a\n" i (reg-read i))))
+    (printf "[reg ~a]: ~a" i (reg-read i))
+    (if (= (modulo (add1 i) 5) 0)
+        (newline)
+        (display " "))))
 
 ;; Update Flags
 (define (update-flags reg-idx)
