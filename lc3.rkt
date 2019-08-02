@@ -87,6 +87,7 @@
 ;; Write To Memory
 (define (mem-write address val)
   (set! address (bitwise-and address #xFFFF))
+  (set! val (bitwise-and val #xFFFF))
   (vector-set! memory address val))
 
 ;; Read From Memory
