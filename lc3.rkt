@@ -301,7 +301,7 @@
 
 ;; JMP
 (define (do-jmp instr)
-  ;; Also handles RET
+  ;; it also handles RET
   (define r1 (bitwise-and (arithmetic-shift instr -6) #x7))
   (reg-write R-PC (reg-read r1)))
 
