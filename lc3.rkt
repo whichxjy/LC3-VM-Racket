@@ -381,7 +381,14 @@
 
 ;; Main Loop
 (define (main)
-  (call-with-input-file "2048.obj" #:mode 'binary read-image-file)
+  ;; get filename
+  (define obj-file-to-run
+    (command-line
+     #:program "LC-3 Virtual Machine"
+     #:args (filename)
+     filename))
+  ;; read image
+  (call-with-input-file obj-file-to-run #:mode 'binary read-image-file)
   ;; set the PC to starting position
   ;; 0x3000 is the default
   (define PC-START #x3000)
