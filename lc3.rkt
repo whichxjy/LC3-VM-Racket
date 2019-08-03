@@ -1,5 +1,9 @@
 #lang racket
 
+(require ffi/unsafe
+         ffi/unsafe/define
+         ffi/unsafe/port)
+
 ;; The LC-3 has 65536 memory locations
 (define MEM-LOC-NUM (expt 2 16))
 
@@ -145,12 +149,61 @@
       (read-image-iter in-port (add1 address))))
   (read-image-iter in-port origin))
 
+;; ==================================================================
+
+;; Modified version of the "get-pass" package
+;; Thanks to Spencer Mitchell (@smitchell556)
+
+(define-ffi-definer define-libc (ffi-lib #f))
+
+;; C Structs
+(define-cstruct _TERMIOS ([c_iflag _uint]
+                          [c_oflag _uint]
+                          [c_cflag _uint]
+                          [c_lflag _uint]
+                          [c_cc (_array _uint 32)]
+                          [c_ispeed _uint]
+                          [c_ospeed _uint]))
+
+;; C Functions
+(define-libc tcgetattr (_fun _int (t : (_ptr o _TERMIOS)) -> (i : _int) -> (values i t)))
+(define-libc tcsetattr (_fun _int _int (t : (_ptr i _TERMIOS)) -> (i : _int) -> (values i t)))
+
+;; C Defines
+(define ECHO 8)
+(define TCSANOW 0)
+(define TCSADRAIN 1)
+
+;; Accept a single character from the port without echoing it back
+(define (getc [in (current-input-port)])
+  ;; Utility to get a single character from the command line without echoing input.
+  (define fd (unsafe-port->file-descriptor in))
+  (define-values (ret-val termios) (tcgetattr fd))
+
+  ;; Set ECHO flag to 0 in TERMIOS struct.
+  (set-TERMIOS-c_lflag! termios (bitwise-and (TERMIOS-c_lflag termios)
+                                             (bitwise-not ECHO)))
+  ;; Use TCSADRAIN to ensure all output to the output port has been transmitted
+  ;; before turning off ECHO.
+  (tcsetattr fd TCSADRAIN termios)
+
+  ;; Read a character
+  (define ch (read-char))
+
+  ;; Set ECHO flag to 1 in TERMIOS struct.
+  (set-TERMIOS-c_lflag! termios (bitwise-ior (TERMIOS-c_lflag termios) ECHO))
+  ;; Use TCSANOW to ensure ECHO is turned on immediately.
+  (tcsetattr fd TCSANOW termios)
+
+  ch)
+
 ;; ====================== Traps Implementation ======================
 
 ;; TRAP GETC
 (define (handle-trap-getc)
   ;; read a single ASCII character
-  (reg-write R-R0 (char->integer (read-char))))
+  ;; (the character is not echoed onto the console)
+  (reg-write R-R0 (char->integer (getc))))
 
 ;; TRAP OUT
 (define (handle-trap-out)
